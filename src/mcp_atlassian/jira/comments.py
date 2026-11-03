@@ -338,6 +338,7 @@ class CommentsMixin(JiraClient):
         comment: str,
         visibility: dict[str, str] | None = None,
         public: bool | None = None,
+        parent_id: str | None = None,
     ) -> dict[str, Any]:
         """Add a comment to an issue.
 
@@ -346,6 +347,9 @@ class CommentsMixin(JiraClient):
             comment: Comment text to add (in Markdown format)
             visibility: (optional) Restrict comment visibility
                 (e.g. {"type":"group","value":"jira-users"})
+            parent_id: (optional) Jira Cloud only. ID of the comment to
+                reply to, so the new comment appears in that comment's
+                thread. Cannot be combined with public.
             public: (optional) For JSM issues only. True for
                 customer-visible, False for internal/agent-only. Posted
                 via the ServiceDesk API as a raw string; Jira Cloud
@@ -363,11 +367,26 @@ class CommentsMixin(JiraClient):
             The created comment details
 
         Raises:
-            ValueError: If both public and visibility are set, or if
+            ValueError: If both public and visibility are set, if
                 issue_key's project is internal-only and public is not
-                exactly False
+                exactly False, or if parent_id is invalid or unsupported
             Exception: If there is an error adding the comment
         """
+        if parent_id is not None:
+            if not parent_id.isdigit():
+                raise ValueError(
+                    f"parent_id must be a numeric comment ID, got '{parent_id}'."
+                )
+            if public is not None:
+                raise ValueError(
+                    "Cannot use both 'parent_id' and 'public'. "
+                    "The ServiceDesk API does not support replies."
+                )
+            if not self.config.is_cloud:
+                raise ValueError(
+                    "Threaded replies (parent_id) are only supported on Jira Cloud."
+                )
+
         # The guard names a project, but the leak it prevents is per issue.
         # An issue that is not a JSM customer request has no portal audience,
         # and the ServiceDesk comment API that public=False needs does not
@@ -411,6 +430,9 @@ class CommentsMixin(JiraClient):
                 data: dict[str, Any] = {"body": jira_formatted_comment}
                 if visibility:
                     data["visibility"] = visibility
+                if parent_id is not None:
+                    # parentId is not in Atlassian's published REST reference.
+                    data["parentId"] = int(parent_id)
                 result = self._post_api3(f"issue/{issue_key}/comment", data)
             else:
                 result = self.jira.issue_add_comment(

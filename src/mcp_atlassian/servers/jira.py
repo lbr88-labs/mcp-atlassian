@@ -2575,16 +2575,29 @@ async def add_comment(
             )
         ),
     ] = None,
+    parent_id: Annotated[
+        str | None,
+        Field(
+            description=(
+                "(Optional) Jira Cloud only. ID of the comment to reply "
+                "to, so the new comment appears in that comment's thread "
+                "(e.g. '10001'). Cannot be combined with public."
+            ),
+            pattern=r"^\d+$",
+        ),
+    ] = None,
 ) -> str:
     """Add a comment to a Jira issue.
 
     Args:
         ctx: The FastMCP context.
         issue_key: Jira issue key.
-        body: Comment text in Markdown.
+        body: Comment text in Markdown. Mention users with
+            [~accountid:<account-id>].
         visibility: (Optional) Comment visibility as JSON string.
         public: (Optional) For JSM issues. True = customer-visible,
             False = internal/agent-only. Uses ServiceDesk API.
+        parent_id: (Optional) Jira Cloud only. Comment ID to reply to.
 
     Returns:
         JSON string representing the added comment object.
@@ -2596,7 +2609,9 @@ async def add_comment(
     """
     jira = await get_jira_fetcher(ctx)
     visibility_dict = _parse_visibility(visibility)
-    result = jira.add_comment(issue_key, body, visibility_dict, public=public)
+    result = jira.add_comment(
+        issue_key, body, visibility_dict, public=public, parent_id=parent_id
+    )
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 

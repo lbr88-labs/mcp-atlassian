@@ -3415,7 +3415,7 @@ async def test_add_comment(jira_client, mock_jira_fetcher):
     )
 
     mock_jira_fetcher.add_comment.assert_called_once_with(
-        "TEST-123", "Test comment body", None, public=None
+        "TEST-123", "Test comment body", None, public=None, parent_id=None
     )
 
     result = json.loads(response.content[0].text)
@@ -3471,7 +3471,7 @@ async def test_add_comment_accepts_comment_alias(jira_client, mock_jira_fetcher)
     )
 
     mock_jira_fetcher.add_comment.assert_called_once_with(
-        "TEST-123", "Test comment body", None, public=None
+        "TEST-123", "Test comment body", None, public=None, parent_id=None
     )
 
     result = json.loads(response.content[0].text)
@@ -3495,7 +3495,7 @@ async def test_add_comment_public_true_keeps_servicedesk_routing(
     )
 
     mock_jira_fetcher.add_comment.assert_called_once_with(
-        "TEST-123", "Test comment body", None, public=True
+        "TEST-123", "Test comment body", None, public=True, parent_id=None
     )
 
 

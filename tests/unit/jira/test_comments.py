@@ -369,6 +369,42 @@ class TestCommentsMixin:
         with pytest.raises(Exception, match="Error adding comment"):
             comments_mixin.add_comment("TEST-123", "Test comment")
 
+    def test_add_comment_reply_sends_parent_id(self, comments_mixin):
+        """parent_id is sent as numeric parentId on the Cloud v3 POST."""
+        comments_mixin._post_api3 = Mock(return_value={"id": "10002", "body": "x"})
+
+        comments_mixin.add_comment("TEST-123", "Reply", parent_id="10001")
+
+        assert comments_mixin._post_api3.call_args[0][1]["parentId"] == 10001
+
+    def test_add_comment_without_parent_id_omits_field(self, comments_mixin):
+        """No parentId is sent for top-level comments."""
+        comments_mixin._post_api3 = Mock(return_value={"id": "10001", "body": "x"})
+
+        comments_mixin.add_comment("TEST-123", "Top level")
+
+        assert "parentId" not in comments_mixin._post_api3.call_args[0][1]
+
+    def test_add_comment_reply_rejects_non_numeric_parent_id(self, comments_mixin):
+        """A non-numeric parent_id fails before any API call."""
+        comments_mixin._post_api3 = Mock()
+
+        with pytest.raises(ValueError, match="numeric comment ID"):
+            comments_mixin.add_comment("TEST-123", "Reply", parent_id="abc")
+
+        comments_mixin._post_api3.assert_not_called()
+
+    def test_add_comment_reply_rejects_public(self, comments_mixin):
+        """parent_id cannot be combined with the ServiceDesk public flag."""
+        comments_mixin._post_api3 = Mock()
+
+        with pytest.raises(ValueError, match="parent_id"):
+            comments_mixin.add_comment(
+                "TEST-123", "Reply", public=True, parent_id="10001"
+            )
+
+        comments_mixin._post_api3.assert_not_called()
+
     def test_edit_comment_basic(self, comments_mixin):
         """Test edit_comment with basic data (Cloud → ADF via v3)."""
         # Setup mock response for v3 API path
@@ -543,6 +579,13 @@ class TestCommentsMixin:
         comment_arg = call_args[0][1]
         assert isinstance(comment_arg, str)
         assert result["body"] == "h1. Hello"
+
+    def test_add_comment_reply_rejected_on_server(self, server_comments_mixin):
+        """Server/DC has no threaded replies, so parent_id is rejected."""
+        with pytest.raises(ValueError, match="only supported on Jira Cloud"):
+            server_comments_mixin.add_comment("TEST-123", "Reply", parent_id="10001")
+
+        server_comments_mixin.jira.issue_add_comment.assert_not_called()
 
     def test_edit_comment_server_sends_string(self, server_comments_mixin):
         """Server/DC edit_comment sends wiki markup string to API."""
