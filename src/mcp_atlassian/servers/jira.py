@@ -2663,6 +2663,58 @@ async def edit_comment(
 
 
 @jira_mcp.tool(
+    tags={"jira", "write", "toolset:jira_comments"},
+    annotations={"title": "Delete Comment", "destructiveHint": True},
+)
+@check_write_access
+async def delete_comment(
+    ctx: Context,
+    issue_key: Annotated[
+        str,
+        Field(
+            description="Jira issue key (e.g., 'PROJ-123', 'ACV2-642')",
+            pattern=ISSUE_KEY_PATTERN,
+        ),
+    ],
+    comment_id: Annotated[
+        str,
+        Field(
+            description=(
+                "The exact ID of one comment to permanently delete "
+                "(e.g. '10001'). Deletion cannot be undone. Resolve and "
+                "verify the exact comment ID before invoking this tool."
+            ),
+            pattern=r"^\d+$",
+        ),
+    ],
+) -> str:
+    """Permanently delete one explicitly identified Jira comment.
+
+    Deletion cannot be undone. Callers should resolve and verify the exact
+    comment ID before invoking this tool.
+
+    Args:
+        ctx: The FastMCP context.
+        issue_key: Jira issue key.
+        comment_id: The exact ID of the comment to delete.
+
+    Returns:
+        JSON string confirming deletion with the issue key and comment ID.
+    """
+    jira = await get_jira_fetcher(ctx)
+    jira.delete_comment(issue_key, comment_id)
+    return json.dumps(
+        {
+            "message": "Comment deleted successfully",
+            "issue_key": issue_key,
+            "comment_id": comment_id,
+        },
+        indent=2,
+        ensure_ascii=False,
+    )
+
+
+@jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_worklog"},
     annotations={"title": "Add Worklog", "destructiveHint": True},
 )

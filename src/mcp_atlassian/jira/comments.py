@@ -613,3 +613,27 @@ class CommentsMixin(JiraClient):
                 f"Error editing comment {comment_id} on issue {issue_key}: {str(e)}"
             )
             raise Exception(f"Error editing comment: {str(e)}") from e
+
+    def delete_comment(self, issue_key: str, comment_id: str) -> None:
+        """Permanently delete one comment from an issue.
+
+        Args:
+            issue_key: The issue key (e.g. 'PROJ-123')
+            comment_id: The numeric ID of the comment to delete
+
+        Raises:
+            ValueError: If issue_key is empty or comment_id is not numeric.
+            requests.exceptions.HTTPError: If Jira rejects the request.
+        """
+        if not issue_key:
+            raise ValueError("issue_key is required")
+        if not comment_id.isdigit():
+            raise ValueError(
+                f"comment_id must be a numeric comment ID, got '{comment_id}'."
+            )
+
+        api_version = "3" if self.config.is_cloud else "2"
+        url = self.jira.resource_url(
+            f"issue/{issue_key}/comment/{comment_id}", api_version=api_version
+        )
+        self.jira.delete(url)

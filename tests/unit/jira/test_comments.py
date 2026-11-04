@@ -394,6 +394,36 @@ class TestCommentsMixin:
 
         comments_mixin._post_api3.assert_not_called()
 
+    def test_delete_comment_cloud_uses_v3(self, comments_mixin):
+        """Cloud deletes through the v3 comment resource."""
+        comments_mixin.jira.resource_url = Mock(return_value="url")
+        comments_mixin.jira.delete = Mock()
+
+        comments_mixin.delete_comment("TEST-123", "10001")
+
+        comments_mixin.jira.resource_url.assert_called_once_with(
+            "issue/TEST-123/comment/10001", api_version="3"
+        )
+        comments_mixin.jira.delete.assert_called_once_with("url")
+
+    @pytest.mark.parametrize("comment_id", ["", "abc", "10001/x"])
+    def test_delete_comment_rejects_non_numeric_id(self, comments_mixin, comment_id):
+        """A non-numeric comment ID fails before any API call."""
+        comments_mixin.jira.delete = Mock()
+
+        with pytest.raises(ValueError, match="numeric comment ID"):
+            comments_mixin.delete_comment("TEST-123", comment_id)
+
+        comments_mixin.jira.delete.assert_not_called()
+
+    def test_delete_comment_surfaces_http_error(self, comments_mixin):
+        """Jira permission or not-found errors are raised to the caller."""
+        comments_mixin.jira.resource_url = Mock(return_value="url")
+        comments_mixin.jira.delete = Mock(side_effect=HTTPError("404 Not Found"))
+
+        with pytest.raises(HTTPError, match="404"):
+            comments_mixin.delete_comment("TEST-123", "10001")
+
     def test_add_comment_reply_rejects_public(self, comments_mixin):
         """parent_id cannot be combined with the ServiceDesk public flag."""
         comments_mixin._post_api3 = Mock()
@@ -579,6 +609,17 @@ class TestCommentsMixin:
         comment_arg = call_args[0][1]
         assert isinstance(comment_arg, str)
         assert result["body"] == "h1. Hello"
+
+    def test_delete_comment_server_uses_v2(self, server_comments_mixin):
+        """Server/DC deletes through the v2 comment resource."""
+        server_comments_mixin.jira.resource_url = Mock(return_value="url")
+
+        server_comments_mixin.delete_comment("TEST-123", "10001")
+
+        server_comments_mixin.jira.resource_url.assert_called_once_with(
+            "issue/TEST-123/comment/10001", api_version="2"
+        )
+        server_comments_mixin.jira.delete.assert_called_once_with("url")
 
     def test_add_comment_reply_rejected_on_server(self, server_comments_mixin):
         """Server/DC has no threaded replies, so parent_id is rejected."""

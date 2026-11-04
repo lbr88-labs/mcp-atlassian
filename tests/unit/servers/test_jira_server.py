@@ -49,6 +49,7 @@ def mock_jira_fetcher():
     mock_fetcher.get_current_user_account_id.return_value = "test-account-id"
     mock_fetcher.jira = MagicMock()
     mock_fetcher.delete_attachment.return_value = None
+    mock_fetcher.delete_comment.return_value = None
 
     # Configure get_issue to return fixture data
     def mock_get_issue(
@@ -468,6 +469,7 @@ def test_jira_mcp(mock_jira_fetcher, mock_base_jira_config):
         create_remote_issue_link,
         create_sprint,
         delete_attachment,
+        delete_comment,
         delete_issue,
         download_attachments,
         edit_comment,
@@ -560,6 +562,7 @@ def test_jira_mcp(mock_jira_fetcher, mock_base_jira_config):
     jira_sub_mcp.add_tool(batch_get_changelogs)
     jira_sub_mcp.add_tool(update_issue)
     jira_sub_mcp.add_tool(delete_attachment)
+    jira_sub_mcp.add_tool(delete_comment)
     jira_sub_mcp.add_tool(assign_issue)
     jira_sub_mcp.add_tool(delete_issue)
     jira_sub_mcp.add_tool(move_issue)
@@ -726,6 +729,71 @@ async def test_delete_attachment_blocked_in_read_only_mode(
             await delete_attachment_tool(ctx, "10001")
 
     mock_jira_fetcher.delete_attachment.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_delete_comment(jira_client, mock_jira_fetcher):
+    """Delete exactly one Jira comment and confirm its ID."""
+    response = await jira_client.call_tool(
+        "jira_delete_comment", {"issue_key": "TEST-123", "comment_id": "10001"}
+    )
+
+    result = json.loads(response.content[0].text)
+    assert result == {
+        "message": "Comment deleted successfully",
+        "issue_key": "TEST-123",
+        "comment_id": "10001",
+    }
+    mock_jira_fetcher.delete_comment.assert_called_once_with("TEST-123", "10001")
+
+
+@pytest.mark.anyio
+async def test_delete_comment_rejects_non_numeric_id(jira_client, mock_jira_fetcher):
+    """Reject a non-numeric comment ID before reaching Jira."""
+    with pytest.raises(ToolError):
+        await jira_client.call_tool(
+            "jira_delete_comment", {"issue_key": "TEST-123", "comment_id": "abc"}
+        )
+
+    mock_jira_fetcher.delete_comment.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_delete_comment_surfaces_jira_api_error(jira_client, mock_jira_fetcher):
+    """Surface Jira permission, not-found, and API failures to MCP callers."""
+    mock_jira_fetcher.delete_comment.side_effect = HTTPError("Jira API error")
+
+    with pytest.raises(ToolError, match="Jira API error"):
+        await jira_client.call_tool(
+            "jira_delete_comment", {"issue_key": "TEST-123", "comment_id": "10001"}
+        )
+
+
+@pytest.mark.anyio
+async def test_delete_comment_blocked_in_read_only_mode(
+    mock_base_jira_config, mock_jira_fetcher
+):
+    """Block comment deletion before reaching Jira in read-only mode."""
+    from src.mcp_atlassian.servers.jira import (
+        delete_comment as delete_comment_tool,
+    )
+
+    ctx = MagicMock()
+    ctx.request_context.lifespan_context = {
+        "app_lifespan_context": MainAppContext(
+            full_jira_config=mock_base_jira_config,
+            read_only=True,
+        )
+    }
+
+    with patch(
+        "src.mcp_atlassian.servers.jira.get_jira_fetcher",
+        AsyncMock(return_value=mock_jira_fetcher),
+    ):
+        with pytest.raises(ToolError, match="read-only mode"):
+            await delete_comment_tool(ctx, "TEST-123", "10001")
+
+    mock_jira_fetcher.delete_comment.assert_not_called()
 
 
 @pytest.mark.anyio
