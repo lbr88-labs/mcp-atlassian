@@ -5,7 +5,7 @@ description: "Comments, worklogs, changelogs, and user profiles"
 
 ### Add Comment
 
-Add a comment to a Jira issue.
+Add a new top-level comment to a Jira issue.
 
 <Note>This is a **write** tool. Disabled when `READ_ONLY_MODE=true`.</Note>
 
@@ -29,6 +29,23 @@ Supports Markdown formatting. On Jira Cloud, mention users with `[~accountid:ACC
 
 ---
 
+### Reply to Comment
+
+Reply to an existing comment on a Jira issue.
+
+<Note>This is a **write** tool. Disabled when `READ_ONLY_MODE=true`.</Note>
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `issue_key` | `string` | Yes | Jira issue key (e.g., 'PROJ-123', 'ACV2-642') |
+| `comment_id` | `string` | Yes | ID of the comment being answered (e.g. '10001'). The reply appears in that comment's thread. Jira Cloud only. |
+| `body` | `string` | Yes | Reply text in Markdown format. Mention users with [~accountid:<account-id>]. |
+| `visibility` | `string` | No | (Optional) Comment visibility as JSON string (e.g. '`{"type":"group","value":"jira-users"}`') |
+
+---
+
 ### Edit Comment
 
 Edit an existing comment on a Jira issue.
@@ -43,6 +60,21 @@ Edit an existing comment on a Jira issue.
 | `comment_id` | `string` | Yes | The ID of the comment to edit |
 | `body` | `string` | Yes | Updated comment text in Markdown format |
 | `visibility` | `string` | No | (Optional) Comment visibility as JSON string (e.g. '`{"type":"group","value":"jira-users"}`') |
+
+---
+
+### Delete Comment
+
+Permanently delete one explicitly identified Jira comment.
+
+<Note>This is a **write** tool. Disabled when `READ_ONLY_MODE=true`.</Note>
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `issue_key` | `string` | Yes | Jira issue key (e.g., 'PROJ-123', 'ACV2-642') |
+| `comment_id` | `string` | Yes | The exact ID of one comment to permanently delete (e.g. '10001'). Deletion cannot be undone. Resolve and verify the exact comment ID before invoking this tool. |
 
 ---
 

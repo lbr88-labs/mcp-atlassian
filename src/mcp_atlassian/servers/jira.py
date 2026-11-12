@@ -2575,19 +2575,11 @@ async def add_comment(
             )
         ),
     ] = None,
-    parent_id: Annotated[
-        str | None,
-        Field(
-            description=(
-                "(Optional) Jira Cloud only. ID of the comment to reply "
-                "to, so the new comment appears in that comment's thread "
-                "(e.g. '10001'). Cannot be combined with public."
-            ),
-            pattern=r"^\d+$",
-        ),
-    ] = None,
 ) -> str:
-    """Add a comment to a Jira issue.
+    """Add a new top-level comment to a Jira issue.
+
+    To answer an existing comment, use jira_reply_to_comment instead so the
+    answer appears in that comment's thread.
 
     Args:
         ctx: The FastMCP context.
@@ -2597,7 +2589,6 @@ async def add_comment(
         visibility: (Optional) Comment visibility as JSON string.
         public: (Optional) For JSM issues. True = customer-visible,
             False = internal/agent-only. Uses ServiceDesk API.
-        parent_id: (Optional) Jira Cloud only. Comment ID to reply to.
 
     Returns:
         JSON string representing the added comment object.
@@ -2609,9 +2600,79 @@ async def add_comment(
     """
     jira = await get_jira_fetcher(ctx)
     visibility_dict = _parse_visibility(visibility)
-    result = jira.add_comment(
-        issue_key, body, visibility_dict, public=public, parent_id=parent_id
-    )
+    result = jira.add_comment(issue_key, body, visibility_dict, public=public)
+    return json.dumps(result, indent=2, ensure_ascii=False)
+
+
+@jira_mcp.tool(
+    tags={"jira", "write", "toolset:jira_comments"},
+    annotations={"title": "Reply to Comment", "destructiveHint": False},
+)
+@check_write_access
+async def reply_to_comment(
+    ctx: Context,
+    issue_key: Annotated[
+        str,
+        Field(
+            description="Jira issue key (e.g., 'PROJ-123', 'ACV2-642')",
+            pattern=ISSUE_KEY_PATTERN,
+        ),
+    ],
+    comment_id: Annotated[
+        str,
+        Field(
+            description=(
+                "ID of the comment being answered (e.g. '10001'). The reply "
+                "appears in that comment's thread. Jira Cloud only."
+            ),
+            pattern=r"^\d+$",
+        ),
+    ],
+    body: Annotated[
+        str,
+        Field(
+            description=(
+                "Reply text in Markdown format. Mention users with "
+                "[~accountid:<account-id>]."
+            ),
+            validation_alias=AliasChoices("body", "comment"),
+        ),
+    ],
+    visibility: Annotated[
+        str | None,
+        Field(
+            description=(
+                "(Optional) Comment visibility as JSON string "
+                '(e.g. \'{"type":"group",'
+                '"value":"jira-users"}\')'
+            )
+        ),
+    ] = None,
+) -> str:
+    """Reply to an existing comment on a Jira issue.
+
+    Use this whenever the new comment answers someone's comment; use
+    jira_add_comment only for new top-level comments.
+
+    Args:
+        ctx: The FastMCP context.
+        issue_key: Jira issue key.
+        comment_id: ID of the comment being answered.
+        body: Reply text in Markdown. Mention users with
+            [~accountid:<account-id>].
+        visibility: (Optional) Comment visibility as JSON string.
+
+    Returns:
+        JSON string representing the added reply.
+
+    Raises:
+        ValueError: If in read-only mode, Jira client unavailable, the
+            instance is Server/Data Center, or the issue is a JSM customer
+            request in a project listed in JIRA_INTERNAL_ONLY_PROJECTS.
+    """
+    jira = await get_jira_fetcher(ctx)
+    visibility_dict = _parse_visibility(visibility)
+    result = jira.add_comment(issue_key, body, visibility_dict, parent_id=comment_id)
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
