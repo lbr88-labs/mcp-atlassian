@@ -508,6 +508,7 @@ def test_jira_mcp(mock_jira_fetcher, mock_base_jira_config):
         move_issue,
         move_issues_to_backlog,
         remove_issue_link,
+        reply_to_comment,
         search,
         search_assignable_users,
         search_fields,
@@ -569,6 +570,7 @@ def test_jira_mcp(mock_jira_fetcher, mock_base_jira_config):
     jira_sub_mcp.add_tool(move_issues_to_backlog)
     jira_sub_mcp.add_tool(add_comment)
     jira_sub_mcp.add_tool(edit_comment)
+    jira_sub_mcp.add_tool(reply_to_comment)
     jira_sub_mcp.add_tool(add_worklog)
     jira_sub_mcp.add_tool(link_to_epic)
     jira_sub_mcp.add_tool(create_issue_link)
@@ -3483,12 +3485,59 @@ async def test_add_comment(jira_client, mock_jira_fetcher):
     )
 
     mock_jira_fetcher.add_comment.assert_called_once_with(
-        "TEST-123", "Test comment body", None, public=None, parent_id=None
+        "TEST-123", "Test comment body", None, public=None
     )
 
     result = json.loads(response.content[0].text)
     assert result["id"] == "10001"
     assert result["body"] == "Test comment body"
+
+
+@pytest.mark.anyio
+async def test_add_comment_has_no_reply_parameter() -> None:
+    """Replies go through jira_reply_to_comment, not jira_add_comment."""
+    import mcp_atlassian.servers.jira as jira_server
+
+    tools = {tool.name: tool for tool in await jira_server.jira_mcp.list_tools()}
+
+    assert "parent_id" not in tools["add_comment"].parameters["properties"]
+    assert "comment_id" in tools["reply_to_comment"].parameters["required"]
+
+
+@pytest.mark.anyio
+async def test_reply_to_comment(jira_client, mock_jira_fetcher):
+    """jira_reply_to_comment threads the reply under the given comment."""
+    response = await jira_client.call_tool(
+        "jira_reply_to_comment",
+        {"issue_key": "TEST-123", "comment_id": "10001", "body": "Reply body"},
+    )
+
+    mock_jira_fetcher.add_comment.assert_called_once_with(
+        "TEST-123", "Reply body", None, parent_id="10001"
+    )
+    result = json.loads(response.content[0].text)
+    assert result["id"] == "10001"
+
+
+@pytest.mark.anyio
+async def test_reply_to_comment_requires_comment_id(jira_client, mock_jira_fetcher):
+    """A reply without the answered comment's ID is rejected."""
+    with pytest.raises(ToolError):
+        await jira_client.call_tool(
+            "jira_reply_to_comment", {"issue_key": "TEST-123", "body": "Reply"}
+        )
+    mock_jira_fetcher.add_comment.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_reply_to_comment_rejects_non_numeric_id(jira_client, mock_jira_fetcher):
+    """A non-numeric comment ID fails schema validation."""
+    with pytest.raises(ToolError):
+        await jira_client.call_tool(
+            "jira_reply_to_comment",
+            {"issue_key": "TEST-123", "comment_id": "abc", "body": "Reply"},
+        )
+    mock_jira_fetcher.add_comment.assert_not_called()
 
 
 @pytest.mark.anyio
@@ -3539,7 +3588,7 @@ async def test_add_comment_accepts_comment_alias(jira_client, mock_jira_fetcher)
     )
 
     mock_jira_fetcher.add_comment.assert_called_once_with(
-        "TEST-123", "Test comment body", None, public=None, parent_id=None
+        "TEST-123", "Test comment body", None, public=None
     )
 
     result = json.loads(response.content[0].text)
@@ -3563,7 +3612,7 @@ async def test_add_comment_public_true_keeps_servicedesk_routing(
     )
 
     mock_jira_fetcher.add_comment.assert_called_once_with(
-        "TEST-123", "Test comment body", None, public=True, parent_id=None
+        "TEST-123", "Test comment body", None, public=True
     )
 
 

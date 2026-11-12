@@ -105,6 +105,7 @@ async def test_tool_registration_issue_dates_name():
         "jira_create_issue",
         "jira_batch_create_issues",
         "jira_add_comment",
+        "jira_reply_to_comment",
         "jira_create_issue_link",
         "jira_create_remote_issue_link",
         "jira_create_sprint",
