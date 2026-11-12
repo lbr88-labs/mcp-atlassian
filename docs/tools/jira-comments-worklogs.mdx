@@ -63,6 +63,21 @@ Edit an existing comment on a Jira issue.
 
 ---
 
+### Delete Comment
+
+Permanently delete one explicitly identified Jira comment.
+
+<Note>This is a **write** tool. Disabled when `READ_ONLY_MODE=true`.</Note>
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `issue_key` | `string` | Yes | Jira issue key (e.g., 'PROJ-123', 'ACV2-642') |
+| `comment_id` | `string` | Yes | The exact ID of one comment to permanently delete (e.g. '10001'). Deletion cannot be undone. Resolve and verify the exact comment ID before invoking this tool. |
+
+---
+
 ### Get Worklog
 
 Get worklog entries for a Jira issue.
